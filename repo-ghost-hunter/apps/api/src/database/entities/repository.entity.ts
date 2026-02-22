@@ -7,60 +7,69 @@ import {
   ManyToOne,
   OneToMany,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { User } from './user.entity';
 import { PullRequest } from './pullrequest.entity';
 import { Issue } from './issue.entity';
 
 @Entity('repositories')
+@Index(['userId'])
+@Index(['owner', 'name'])
+@Index(['healthScore'])
 export class Repository {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ name: 'github_id' })
+  @Index()
   githubId: string;
 
-  @Column()
+  @Column({ name: 'user_id' })
+  @Index()
   userId: string;
 
   @ManyToOne(() => User, (user) => user.repositories)
-  @JoinColumn({ name: 'userId' })
+  @JoinColumn({ name: 'user_id' })
   user: User;
 
   @Column()
   name: string;
 
   @Column()
+  @Index()
   owner: string;
 
-  @Column()
+  @Column({ name: 'full_name' })
   fullName: string;
 
   @Column({ type: 'text', nullable: true })
   description: string;
 
-  @Column()
+  @Column({ type: 'varchar', length: 500 })
   url: string;
 
   @Column({ default: false })
   private: boolean;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ name: 'last_commit', type: 'timestamp', nullable: true })
+  @Index()
   lastCommit: Date;
 
-  @Column({ type: 'int', default: 0 })
+  @Column({ name: 'health_score', type: 'int', default: 0 })
+  @Index()
   healthScore: number;
 
-  @Column({ type: 'int', default: 0 })
+  @Column({ name: 'open_pr_count', type: 'int', default: 0 })
   openPrCount: number;
 
-  @Column({ type: 'int', default: 0 })
+  @Column({ name: 'open_issue_count', type: 'int', default: 0 })
   openIssueCount: number;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
   @OneToMany(() => PullRequest, (pr) => pr.repo)
