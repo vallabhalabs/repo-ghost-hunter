@@ -12,12 +12,31 @@ export class AuthController {
 
   /**
    * Initiates GitHub OAuth flow
-   * Redirects user to GitHub authorization page
+   * 
+   * This endpoint redirects the user to GitHub's authorization page.
+   * After the user authorizes, GitHub will redirect back to /auth/github/callback
+   * 
+   * @query state - Optional state parameter for CSRF protection
+   * @returns Redirects to GitHub authorization page
+   * 
+   * @example
+   * GET /api/auth/github
+   * GET /api/auth/github?state=random_csrf_token
    */
   @Get('github')
   @UseGuards(AuthGuard('github'))
-  async githubAuth() {
-    // Passport handles the redirect to GitHub
+  async githubAuth(@Req() req: Request) {
+    // Passport GitHub strategy automatically handles:
+    // 1. Redirecting to GitHub authorization URL
+    // 2. Including client_id, redirect_uri, scope, and state parameters
+    // 3. The user will be redirected to GitHub's authorization page
+    
+    // If we reach here, it means the guard didn't redirect (shouldn't happen)
+    // This is a fallback
+    return {
+      message: 'Redirecting to GitHub...',
+      url: 'https://github.com/login/oauth/authorize',
+    };
   }
 
   /**
