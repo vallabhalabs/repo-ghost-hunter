@@ -4,6 +4,7 @@ import { Request, Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../database/entities/user.entity';
+import { AppConfigService } from '../../config/config.service';
 
 @Injectable()
 export class AuthService {
@@ -11,6 +12,7 @@ export class AuthService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly jwtService: JwtService,
+    private readonly configService: AppConfigService,
   ) {}
 
   async handleGitHubCallback(req: Request, res: Response) {
@@ -46,11 +48,11 @@ export class AuthService {
     // Set cookie and redirect
     res.cookie('access_token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: this.configService.isProduction,
       sameSite: 'lax',
     });
 
-    return res.redirect(process.env.FRONTEND_URL || 'http://localhost:3000/dashboard');
+    return res.redirect(`${this.configService.frontendUrl}/dashboard`);
   }
 
   async validateUser(payload: any) {

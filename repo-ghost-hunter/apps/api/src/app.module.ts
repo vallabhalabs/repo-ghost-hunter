@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { AppConfigModule } from './config/config.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { GitHubModule } from './modules/github/github.module';
 import { ReposModule } from './modules/repos/repos.module';
@@ -14,10 +14,7 @@ import { DatabaseModule } from './database/database.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: ['.env.local', '.env'],
-    }),
+    AppConfigModule,
     ScheduleModule.forRoot(),
     DatabaseModule,
     HealthModule,

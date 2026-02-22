@@ -1,13 +1,17 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { AppConfigService } from './config/config.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Get config service
+  const configService = app.get(AppConfigService);
+
   // Enable CORS
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: configService.frontendUrl,
     credentials: true,
   });
 
@@ -23,9 +27,10 @@ async function bootstrap() {
   // Global prefix
   app.setGlobalPrefix('api');
 
-  const port = process.env.PORT || 3001;
+  const port = configService.port;
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}/api`);
+  console.log(`Environment: ${configService.nodeEnv}`);
 }
 
 bootstrap();

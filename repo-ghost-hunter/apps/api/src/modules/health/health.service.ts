@@ -1,16 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { AppConfigService } from '../../config/config.service';
 
 @Injectable()
 export class HealthService {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: AppConfigService) {}
 
   getHealthStatus() {
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-      environment: this.configService.get('NODE_ENV', 'development'),
+      environment: this.configService.nodeEnv,
       version: process.env.npm_package_version || '1.0.0',
       service: 'repo-ghost-hunter-api',
     };
