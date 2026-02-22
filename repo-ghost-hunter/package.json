@@ -1,0 +1,34 @@
+{
+  "name": "repo-ghost-hunter",
+  "version": "1.0.0",
+  "description": "A full-stack SaaS application that monitors GitHub repository activity to detect inactive or unhealthy repositories",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean"
+  },
+  "keywords": [
+    "github",
+    "repository",
+    "monitoring",
+    "saas",
+    "analytics",
+    "health-score"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "turbo": "^1.10.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
