@@ -269,3 +269,107 @@ CREATE INDEX idx_pull_requests_status ON pull_requests(status);
 CREATE INDEX idx_pull_requests_number ON pull_requests(number);
 CREATE INDEX idx_pull_requests_github_id ON pull_requests(github_id);
 ```
+
+## Issue Entity
+
+The `Issue` entity represents a GitHub issue that is being tracked for a repository.
+
+### Fields
+
+- **id** (`uuid`) - Primary key, auto-generated UUID
+- **repoId** (`uuid`, indexed) - Foreign key to Repository entity
+- **number** (`int`, indexed) - Issue number from GitHub
+- **createdAt** (`timestamp`, indexed) - When the issue was created
+- **status** (`string`, default: 'open', indexed) - Issue status: 'open' or 'closed'
+
+### Additional Fields
+
+- **githubId** (`string`, indexed) - GitHub issue ID
+- **userId** (`uuid`) - Foreign key to User entity
+- **title** (`string`, nullable) - Issue title
+- **updatedAt** (`timestamp`) - Record last update timestamp
+
+### Relationships
+
+- **repo** - Many-to-one relationship with Repository entity
+- **user** - Many-to-one relationship with User entity
+
+### Indexes
+
+- Index on `repoId` for faster repository issue queries
+- Composite index on `repoId` and `status` for filtering by repository and status
+- Index on `createdAt` for stale issue detection (30+ days)
+- Index on `status` for status-based queries
+- Index on `number` for issue number lookups
+- Index on `githubId` for GitHub API synchronization
+
+### Usage Example
+
+```typescript
+import { Issue } from './entities/issue.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository as TypeOrmRepository, LessThan } from 'typeorm';
+
+@Injectable()
+export class IssuesService {
+  constructor(
+    @InjectRepository(Issue)
+    private readonly issueRepository: TypeOrmRepository<Issue>,
+  ) {}
+
+  async findByRepoId(repoId: string): Promise<Issue[]> {
+    return this.issueRepository.find({
+      where: { repoId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async getStaleIssues(days: number = 30): Promise<Issue[]> {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    
+    return this.issueRepository.find({
+      where: {
+        status: 'open',
+        updatedAt: LessThan(date),
+      },
+    });
+  }
+
+  async updateStatus(issueId: string, status: string): Promise<void> {
+    await this.issueRepository.update(issueId, { status });
+  }
+
+  async getOpenIssuesByRepo(repoId: string): Promise<Issue[]> {
+    return this.issueRepository.find({
+      where: {
+        repoId,
+        status: 'open',
+      },
+    });
+  }
+}
+```
+
+### Database Schema
+
+```sql
+CREATE TABLE issues (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  github_id VARCHAR(255) NOT NULL,
+  repo_id UUID NOT NULL REFERENCES repositories(id),
+  user_id UUID NOT NULL REFERENCES users(id),
+  number INTEGER NOT NULL,
+  title VARCHAR(255),
+  status VARCHAR(50) DEFAULT 'open' NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_issues_repo_id ON issues(repo_id);
+CREATE INDEX idx_issues_repo_status ON issues(repo_id, status);
+CREATE INDEX idx_issues_created_at ON issues(created_at);
+CREATE INDEX idx_issues_status ON issues(status);
+CREATE INDEX idx_issues_number ON issues(number);
+CREATE INDEX idx_issues_github_id ON issues(github_id);
+```
