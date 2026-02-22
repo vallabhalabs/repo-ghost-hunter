@@ -9,6 +9,7 @@ import { PullRequestsModule } from './modules/pullrequests/pullrequests.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
+import { HealthModule } from './modules/health/health.module';
 import { DatabaseModule } from './database/database.module';
 
 @Module({
@@ -19,6 +20,7 @@ import { DatabaseModule } from './database/database.module';
     }),
     ScheduleModule.forRoot(),
     DatabaseModule,
+    HealthModule,
     AuthModule,
     GitHubModule,
     ReposModule,
