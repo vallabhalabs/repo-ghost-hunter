@@ -6,44 +6,54 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { Repository } from './repository.entity';
 import { User } from './user.entity';
 
 @Entity('pull_requests')
+@Index(['repoId'])
+@Index(['repoId', 'status'])
+@Index(['createdAt'])
+@Index(['status'])
 export class PullRequest {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ name: 'github_id' })
+  @Index()
   githubId: string;
 
-  @Column()
+  @Column({ name: 'repo_id' })
+  @Index()
   repoId: string;
 
   @ManyToOne(() => Repository, (repo) => repo.pullRequests)
-  @JoinColumn({ name: 'repoId' })
+  @JoinColumn({ name: 'repo_id' })
   repo: Repository;
 
-  @Column()
+  @Column({ name: 'user_id' })
   userId: string;
 
   @ManyToOne(() => User)
-  @JoinColumn({ name: 'userId' })
+  @JoinColumn({ name: 'user_id' })
   user: User;
 
   @Column()
+  @Index()
   number: number;
 
-  @Column()
+  @Column({ nullable: true })
   title: string;
 
-  @Column()
+  @Column({ default: 'open' })
+  @Index()
   status: string; // 'open', 'closed', 'merged'
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
+  @Index()
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }

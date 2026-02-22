@@ -174,3 +174,98 @@ CREATE INDEX idx_repositories_health_score ON repositories(health_score);
 CREATE INDEX idx_repositories_last_commit ON repositories(last_commit);
 CREATE INDEX idx_repositories_github_id ON repositories(github_id);
 ```
+
+## PullRequest Entity
+
+The `PullRequest` entity represents a GitHub pull request that is being tracked for a repository.
+
+### Fields
+
+- **id** (`uuid`) - Primary key, auto-generated UUID
+- **repoId** (`uuid`, indexed) - Foreign key to Repository entity
+- **number** (`int`, indexed) - Pull request number from GitHub
+- **createdAt** (`timestamp`, indexed) - When the pull request was created
+- **status** (`string`, default: 'open', indexed) - Pull request status: 'open', 'closed', or 'merged'
+
+### Additional Fields
+
+- **githubId** (`string`, indexed) - GitHub pull request ID
+- **userId** (`uuid`) - Foreign key to User entity
+- **title** (`string`, nullable) - Pull request title
+- **updatedAt** (`timestamp`) - Record last update timestamp
+
+### Relationships
+
+- **repo** - Many-to-one relationship with Repository entity
+- **user** - Many-to-one relationship with User entity
+
+### Indexes
+
+- Index on `repoId` for faster repository PR queries
+- Composite index on `repoId` and `status` for filtering by repository and status
+- Index on `createdAt` for stale PR detection (14+ days)
+- Index on `status` for status-based queries
+- Index on `number` for PR number lookups
+- Index on `githubId` for GitHub API synchronization
+
+### Usage Example
+
+```typescript
+import { PullRequest } from './entities/pullrequest.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository as TypeOrmRepository, LessThan } from 'typeorm';
+
+@Injectable()
+export class PullRequestsService {
+  constructor(
+    @InjectRepository(PullRequest)
+    private readonly prRepository: TypeOrmRepository<PullRequest>,
+  ) {}
+
+  async findByRepoId(repoId: string): Promise<PullRequest[]> {
+    return this.prRepository.find({
+      where: { repoId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async getStalePullRequests(days: number = 14): Promise<PullRequest[]> {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    
+    return this.prRepository.find({
+      where: {
+        status: 'open',
+        createdAt: LessThan(date),
+      },
+    });
+  }
+
+  async updateStatus(prId: string, status: string): Promise<void> {
+    await this.prRepository.update(prId, { status });
+  }
+}
+```
+
+### Database Schema
+
+```sql
+CREATE TABLE pull_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  github_id VARCHAR(255) NOT NULL,
+  repo_id UUID NOT NULL REFERENCES repositories(id),
+  user_id UUID NOT NULL REFERENCES users(id),
+  number INTEGER NOT NULL,
+  title VARCHAR(255),
+  status VARCHAR(50) DEFAULT 'open' NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_pull_requests_repo_id ON pull_requests(repo_id);
+CREATE INDEX idx_pull_requests_repo_status ON pull_requests(repo_id, status);
+CREATE INDEX idx_pull_requests_created_at ON pull_requests(created_at);
+CREATE INDEX idx_pull_requests_status ON pull_requests(status);
+CREATE INDEX idx_pull_requests_number ON pull_requests(number);
+CREATE INDEX idx_pull_requests_github_id ON pull_requests(github_id);
+```
