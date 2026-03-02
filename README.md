@@ -34,7 +34,9 @@ repo-ghost-hunter/
 - **NestJS** for API server
 - **Prisma** ORM with PostgreSQL
 - **JWT** authentication
-- **Redis** for caching
+- **Redis** for caching and queue management
+- **BullMQ** for background job processing
+- **@nestjs/schedule** for cron jobs
 
 ### Infrastructure
 - **Turbo** for monorepo management
@@ -353,6 +355,59 @@ For questions and support:
 - [ ] Mobile application
 - [ ] API rate limiting and analytics
 - [ ] Multi-tenant support
+
+## Background Sync System
+
+The application uses a robust background sync system powered by BullMQ and Redis to automatically update repository data.
+
+### How It Works
+
+1. **Queue-Based Processing**: All sync operations go through a Redis-backed queue system
+2. **Automated Scheduling**: Daily cron job at 2 AM UTC triggers sync for all users
+3. **Rate Limiting**: Jobs are staggered to avoid GitHub API rate limits
+4. **Retry Logic**: Failed jobs retry up to 3 times with exponential backoff
+
+### Queue Management
+
+The system provides several endpoints for monitoring and managing the sync queue:
+
+```bash
+# Trigger manual sync for current user
+POST /queue/trigger
+
+# Get queue statistics
+GET /queue/stats
+
+# Pause/resume queue processing
+POST /queue/pause
+POST /queue/resume
+
+# Trigger sync for all users (admin only)
+POST /queue/trigger-all
+```
+
+### Monitoring
+
+- **Queue Stats**: Track waiting, active, completed, and failed jobs
+- **Health Logging**: Automatic logging of queue size and failed jobs
+- **Graceful Shutdown**: Workers shut down cleanly on application termination
+
+### Redis Requirement
+
+The background sync system requires Redis for queue management:
+
+```env
+REDIS_URL="redis://localhost:6379"
+```
+
+Redis is automatically started in the Docker development environment.
+
+### Job Configuration
+
+- **Concurrency**: Maximum 3 concurrent jobs to prevent API overload
+- **Rate Limiting**: 10 jobs per minute maximum
+- **Retry Strategy**: 3 attempts with exponential backoff (5s, 10s, 20s)
+- **Job Retention**: Keep last 100 completed and 50 failed jobs
 
 ---
 
