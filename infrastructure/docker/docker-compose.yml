@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: repo-ghost-hunter-db
+    restart: unless-stopped
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_DB: repo_ghost_hunter
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: repo-ghost-hunter-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+
+  # Development services
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.dev
+    container_name: repo-ghost-hunter-api
+    restart: unless-stopped
+    ports:
+      - '3001:3001'
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/repo_ghost_hunter
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ../..:/app
+      - /app/node_modules
+      - /app/apps/api/node_modules
+      - /app/packages/*/node_modules
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - app-network
+    command: pnpm run dev:api
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.dev
+    container_name: repo-ghost-hunter-web
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+    volumes:
+      - ../..:/app
+      - /app/node_modules
+      - /app/apps/web/node_modules
+      - /app/packages/*/node_modules
+    depends_on:
+      - api
+    networks:
+      - app-network
+    command: pnpm run dev:web
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  app-network:
+    driver: bridge

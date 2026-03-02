@@ -1,0 +1,28 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy package files
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY packages/config/package.json ./packages/config/
+COPY packages/database/package.json ./packages/database/
+COPY packages/types/package.json ./packages/types/
+COPY packages/ui/package.json ./packages/ui/
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Generate Prisma client
+RUN pnpm run db:generate
+
+EXPOSE 3000 3001
+
+CMD ["pnpm", "run", "dev"]

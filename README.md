@@ -1,110 +1,263 @@
 # Repo Ghost Hunter
 
-A full-stack SaaS application that connects to GitHub and monitors repository activity to detect inactive or unhealthy repositories.
+A production-grade SaaS application that monitors GitHub repository activity to detect inactive or unhealthy repositories. Built with modern web technologies and designed for scalability.
 
-## Overview
+## Architecture Overview
 
-Repo Ghost Hunter helps developers and teams identify repositories that need attention by tracking:
-- Repository activity and commit frequency
-- Stale pull requests and issues
-- Repository health scores
-- Contributor activity
-
-## Features
-
-- 🔐 **GitHub OAuth Authentication** - Secure login with GitHub
-- 📊 **Repository Monitoring** - Track all your repositories in one place
-- 🔍 **Activity Scanning** - Daily background jobs collect repository metrics
-- ⚠️ **Stale Detection** - Automatically detect inactive repos, stale PRs, and issues
-- 📈 **Health Scoring** - Calculate repository health scores (0-100)
-- 📧 **Weekly Reports** - Email summaries of repository health
-- 📱 **Modern Dashboard** - Clean, intuitive UI with charts and analytics
-
-## Tech Stack
-
-### Frontend
-- **Next.js** (App Router)
-- **TypeScript**
-- **Tailwind CSS**
-- **Chart.js** for analytics
-
-### Backend
-- **NestJS**
-- **Node.js**
-- **REST API**
-
-### Database
-- **PostgreSQL**
-
-### Queue / Jobs
-- **Redis** with **BullMQ**
-
-### Authentication
-- **GitHub OAuth**
-
-### External APIs
-- **GitHub REST API**
-
-## Project Structure
+This is a **Turbo monorepo** that follows enterprise-grade architecture patterns:
 
 ```
 repo-ghost-hunter/
 ├── apps/
-│   ├── web/          # Next.js frontend
-│   └── api/          # NestJS backend
+│   ├── web/                # Next.js 14 frontend (App Router)
+│   └── api/                # NestJS backend API
 ├── packages/
-│   ├── database/     # Database schemas and migrations
-│   └── ui/           # Shared UI components
+│   ├── ui/                 # Shared UI components
+│   ├── database/           # Prisma schema + client
+│   ├── config/             # Shared TypeScript/ESLint configs
+│   └── types/              # Shared TypeScript types
 ├── infrastructure/
-│   ├── docker/       # Docker configurations
-│   └── scripts/      # Deployment and utility scripts
-├── README.md
-├── LICENSE
-└── .gitignore
+│   ├── docker/             # Docker configuration
+│   └── scripts/            # Development scripts
+└── .github/workflows/      # CI/CD pipelines
 ```
 
-## Getting Started
+## Tech Stack
+
+### Frontend
+- **Next.js 14** with App Router
+- **TypeScript** (strict mode)
+- **Tailwind CSS** for styling
+- **React Server Components**
+
+### Backend
+- **NestJS** for API server
+- **Prisma** ORM with PostgreSQL
+- **JWT** authentication
+- **Redis** for caching
+
+### Infrastructure
+- **Turbo** for monorepo management
+- **pnpm** for package management
+- **Docker** & Docker Compose
+- **GitHub Actions** for CI/CD
+
+## Development Setup
 
 ### Prerequisites
 
-- Node.js 18+ 
-- PostgreSQL 14+
-- Redis 6+
-- GitHub OAuth App credentials
+- Node.js 18+
+- pnpm 8+
+- Docker & Docker Compose
+- PostgreSQL (or use Docker)
 
-### Environment Variables
+### Quick Start
 
-Create `.env` files in both `apps/web` and `apps/api`:
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd repo-ghost-hunter
+   ```
 
-```env
-# GitHub OAuth
-GITHUB_CLIENT_ID=your_client_id
-GITHUB_CLIENT_SECRET=your_client_secret
+2. **Run the setup script**
+   ```bash
+   chmod +x infrastructure/scripts/setup.sh
+   ./infrastructure/scripts/setup.sh
+   ```
 
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/repo_ghost_hunter
+3. **Configure environment variables**
+   ```bash
+   cp .env.example .env.local
+   # Edit .env.local with your configuration
+   ```
 
-# Redis
-REDIS_URL=redis://localhost:6379
+4. **Start development servers**
+   ```bash
+   pnpm run dev
+   ```
 
-# JWT
-JWT_SECRET=your_jwt_secret
-```
+   Or start services individually:
+   ```bash
+   pnpm run dev:web  # Frontend at http://localhost:3000
+   pnpm run dev:api  # Backend at http://localhost:3001
+   ```
 
-### Installation
+### Docker Development
+
+For a complete development environment with Docker:
 
 ```bash
-# Install dependencies
-npm install
-
-# Run database migrations
-npm run db:migrate
-
-# Start development servers
-npm run dev
+cd infrastructure/docker
+docker-compose up -d
 ```
 
-## Core Features
+This will start:
+- PostgreSQL database
+- Redis cache
+- API server
+- Web frontend
+
+## Project Structure
+
+### Applications (`apps/`)
+
+- **`apps/web`** - Next.js frontend application
+- **`apps/api`** - NestJS backend API
+
+### Packages (`packages/`)
+
+- **`packages/ui`** - Reusable React components
+- **`packages/database`** - Prisma schema and database client
+- **`packages/config`** - Shared ESLint, TypeScript configurations
+- **`packages/types`** - Shared TypeScript type definitions
+
+### Infrastructure (`infrastructure/`)
+
+- **`infrastructure/docker/`** - Docker configuration files
+- **`infrastructure/scripts/`** - Development and deployment scripts
+
+## Available Scripts
+
+### Root Level Commands
+
+```bash
+# Development
+pnpm run dev              # Start all services
+pnpm run dev:web          # Start only web app
+pnpm run dev:api          # Start only API
+
+# Building
+pnpm run build            # Build all packages
+pnpm run build:web        # Build only web app
+pnpm run build:api        # Build only API
+
+# Quality Assurance
+pnpm run lint             # Lint all packages
+pnpm run lint:fix         # Fix linting issues
+pnpm run type-check       # Type check all packages
+pnpm run test             # Run all tests
+pnpm run test:watch       # Run tests in watch mode
+
+# Database
+pnpm run db:generate      # Generate Prisma client
+pnpm run db:push          # Push schema to database
+pnpm run db:migrate       # Run database migrations
+pnpm run db:studio        # Open Prisma Studio
+pnpm run db:seed          # Seed database with sample data
+
+# Utilities
+pnpm run clean            # Clean build artifacts
+```
+
+## Environment Variables
+
+Copy `.env.example` to `.env.local` and configure:
+
+### Required Variables
+- `DATABASE_URL` - PostgreSQL connection string
+- `NEXTAUTH_SECRET` - Authentication secret
+- `NEXTAUTH_URL` - Application URL
+- `GITHUB_CLIENT_ID` - GitHub OAuth app client ID
+- `GITHUB_CLIENT_SECRET` - GitHub OAuth app client secret
+
+### Optional Variables
+- `REDIS_URL` - Redis connection string for caching
+- `GITHUB_API_TOKEN` - GitHub personal access token
+- `SENTRY_DSN` - Sentry error tracking
+- `GOOGLE_ANALYTICS_ID` - Google Analytics
+
+## Development Workflow
+
+1. **Create a feature branch** from `develop`
+2. **Make changes** following the established patterns
+3. **Run tests and linting** locally
+4. **Submit a pull request** to `develop`
+5. **Code review** and automated CI/CD checks
+6. **Merge** to `develop` for staging
+7. **Deploy** to production from `main`
+
+## Monorepo Benefits
+
+- **Shared Dependencies**: Common packages are shared across applications
+- **Atomic Commits**: Changes to multiple packages can be committed together
+- **Consistent Tooling**: Unified linting, formatting, and TypeScript configuration
+- **Faster CI**: Intelligent caching and parallel builds
+- **Scalability**: Easy to add new applications and packages
+
+## Health Score Algorithm
+
+The application calculates repository health scores based on:
+
+- **Commit Frequency** - Recent activity and consistency
+- **Issue Resolution** - How quickly issues are addressed
+- **Pull Request Activity** - Community engagement
+- **Contributor Activity** - Number and diversity of contributors
+- **Documentation Quality** - Presence and quality of README, docs
+
+## Authentication
+
+- **GitHub OAuth** for user authentication
+- **JWT tokens** for session management
+- **Role-based access control** (RBAC) ready
+
+## Deployment
+
+### Production Deployment
+
+1. **Build all applications**
+   ```bash
+   pnpm run build
+   ```
+
+2. **Run database migrations**
+   ```bash
+   pnpm run db:migrate
+   ```
+
+3. **Deploy with Docker**
+   ```bash
+   docker-compose -f docker-compose.prod.yml up -d
+   ```
+
+### Environment-Specific Configurations
+
+- **Development**: Local development with hot reload
+- **Staging**: Production-like environment for testing
+- **Production**: Optimized builds with security hardening
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+For questions and support:
+
+- Create an issue in the GitHub repository
+- Check the documentation in `/docs`
+- Review the FAQ in the wiki
+
+## Roadmap
+
+- [ ] Real-time repository monitoring
+- [ ] Advanced health score algorithms
+- [ ] Team collaboration features
+- [ ] Custom alert configurations
+- [ ] Mobile application
+- [ ] API rate limiting and analytics
+- [ ] Multi-tenant support
+
+---
+
+**Built with ❤️ for the open-source community**
 
 ### 1. GitHub Authentication
 Users sign in with GitHub OAuth and their access tokens are stored securely.

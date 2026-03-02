@@ -1,24 +1,83 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": ["**/.env.*local"],
+  "globalDependencies": ["**/.env.*local", "pnpm-lock.yaml"],
   "pipeline": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "dependsOn": ["^build", "db:generate"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "env": ["NODE_ENV"]
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "dependsOn": ["db:generate"]
+    },
+    "dev:web": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["db:generate"]
+    },
+    "dev:api": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["db:generate"]
     },
     "lint": {
+      "dependsOn": ["^build"],
+      "outputs": [],
+      "inputs": ["src/**/*.tsx", "src/**/*.ts", "*.ts", "*.tsx"]
+    },
+    "lint:fix": {
+      "cache": false,
       "outputs": []
     },
+    "type-check": {
+      "dependsOn": ["^build", "db:generate"],
+      "outputs": [],
+      "inputs": ["src/**/*.tsx", "src/**/*.ts", "*.ts", "*.tsx"]
+    },
     "test": {
-      "dependsOn": ["build"],
-      "outputs": ["coverage/**"]
+      "dependsOn": ["build", "db:generate"],
+      "outputs": ["coverage/**"],
+      "inputs": ["src/**/*.tsx", "src/**/*.ts", "*.ts", "*.tsx", "test/**/*.ts", "test/**/*.tsx"]
+    },
+    "test:watch": {
+      "cache": false,
+      "persistent": true
     },
     "clean": {
       "cache": false
+    },
+    "db:generate": {
+      "cache": false,
+      "outputs": ["packages/database/prisma/generated/**"],
+      "inputs": ["packages/database/prisma/schema.prisma"]
+    },
+    "db:push": {
+      "cache": false,
+      "dependsOn": ["db:generate"]
+    },
+    "db:migrate": {
+      "cache": false,
+      "dependsOn": ["db:generate"]
+    },
+    "db:studio": {
+      "cache": false,
+      "persistent": true
+    },
+    "db:seed": {
+      "cache": false,
+      "dependsOn": ["db:generate"]
     }
-  }
+  },
+  "globalEnv": [
+    "NODE_ENV",
+    "DATABASE_URL",
+    "NEXTAUTH_SECRET",
+    "NEXTAUTH_URL",
+    "GITHUB_CLIENT_ID",
+    "GITHUB_CLIENT_SECRET",
+    "REDIS_URL",
+    "GITHUB_API_TOKEN"
+  ]
 }

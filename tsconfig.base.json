@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "declaration": true,
+    "declarationMap": true,
+    "composite": true,
+    "incremental": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@repo/web/*": ["./apps/web/*"],
+      "@repo/api/*": ["./apps/api/*"],
+      "@repo/ui/*": ["./packages/ui/*"],
+      "@repo/database/*": ["./packages/database/*"],
+      "@repo/config/*": ["./packages/config/*"],
+      "@repo/types/*": ["./packages/types/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "build", ".next", "coverage"]
+}
