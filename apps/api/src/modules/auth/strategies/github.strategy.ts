@@ -1,18 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, Profile } from 'passport-github2';
-import { AppConfigService } from '../../../config/config.service';
-import { GitHubUserDto } from '../dto/github-user.dto';
+import { GitHubUser } from '../dto/github-user.dto';
 
 @Injectable()
 export class GitHubStrategy extends PassportStrategy(Strategy, 'github') {
-  constructor(private configService: AppConfigService) {
-    const githubConfig = configService.github;
+  constructor() {
     super({
-      clientID: githubConfig.clientId,
-      clientSecret: githubConfig.clientSecret,
-      callbackURL: githubConfig.callbackUrl,
-      scope: ['user:email', 'repo'],
+      clientID: process.env.GITHUB_CLIENT_ID!,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+      callbackURL: process.env.GITHUB_CALLBACK_URL || 'http://localhost:3001/api/auth/github/callback',
+      scope: ['user:email', 'read:user'],
     });
   }
 
@@ -20,21 +18,21 @@ export class GitHubStrategy extends PassportStrategy(Strategy, 'github') {
     accessToken: string,
     refreshToken: string,
     profile: Profile,
-    done: (error: any, user?: GitHubUserDto) => void,
+    done: (error: any, user?: GitHubUser) => void,
   ): Promise<void> {
     try {
-      const { id, username, displayName, photos, emails } = profile;
+      const { id, login, name, avatar_url, emails } = profile;
 
-      const user: GitHubUserDto = {
-        id: id.toString(),
-        username: username || '',
-        displayName: displayName || username || '',
-        photos: photos as Array<{ value: string }> | undefined,
-        emails: emails as Array<{ value: string; verified?: boolean }> | undefined,
-        accessToken,
+      const githubUser: GitHubUser = {
+        id,
+        login: login || '',
+        name: name || login || '',
+        avatar_url,
+        emails: emails as Array<{ email: string; verified: boolean }> | undefined,
+        access_token: accessToken,
       };
 
-      done(null, user);
+      done(null, githubUser);
     } catch (error) {
       done(error, null);
     }
