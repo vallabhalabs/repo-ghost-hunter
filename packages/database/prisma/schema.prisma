@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,69 +8,72 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String?
+  avatar      String?
+  accessToken String?  @map("access_token")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  // Relations
-  repositories Repository[]
-  accounts     Account[]
+  repositories  Repository[]
+  organizations Organization[]
 
   @@map("users")
 }
 
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
+model Organization {
+  id          String   @id @default(uuid()) @db.Uuid
+  githubOrgId Int      @map("github_org_id")
+  login       String
+  avatarUrl   String?  @map("avatar_url")
+  userId      String   @map("user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repositories Repository[]
 
-  @@unique([provider, providerAccountId])
-  @@map("accounts")
+  // Multi-tenant uniqueness: avoid duplicates per user
+  @@unique([userId, githubOrgId])
+  @@unique([userId, login])
+  @@index([userId])
+  @@map("organizations")
 }
 
 model Repository {
-  id          String   @id @default(cuid())
-  githubId    Int      @unique
-  name        String
-  fullName    String
-  description String?
-  url         String
-  language    String?
-  stars       Int      @default(0)
-  forks       Int      @default(0)
-  issues      Int      @default(0)
-  lastCommit  DateTime?
-  isActive    Boolean  @default(true)
-  healthScore Float    @default(0.0)
-  
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  githubRepoId   Int      @map("github_repo_id")
+  name           String
+  fullName       String   @map("full_name")
+  description    String?  @db.Text
+  url            String
+  language       String?
+  stars          Int      @default(0)
+  forks          Int      @default(0)
+  issues         Int      @default(0)
+  lastCommitAt   DateTime? @map("last_commit_at")
+  isActive       Boolean  @default(true) @map("is_active")
+  healthScore    Float    @default(0) @map("health_score")
+  openPrCount    Int      @default(0) @map("open_pr_count")
+  openIssueCount Int      @default(0) @map("open_issue_count")
+  private        Boolean  @default(false)
+  defaultBranch  String   @default("main") @map("default_branch")
 
+  userId         String    @map("user_id")
+  organizationId String?   @db.Uuid @map("organization_id")
+
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization  Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  // Multi-tenant uniqueness: avoid duplicates per user
+  @@unique([userId, githubRepoId])
+  @@index([userId])
+  @@index([organizationId])
+  @@index([healthScore])
+  @@index([githubRepoId])
   @@map("repositories")
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
 }
