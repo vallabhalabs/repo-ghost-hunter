@@ -1,71 +1,69 @@
-import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Request, Response } from 'express';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from '../../database/entities/user.entity';
-import { AppConfigService } from '../../config/config.service';
-import { GitHubUserDto } from './dto/github-user.dto';
-import { AuthResponseDto } from './dto/auth-response.dto';
+import { User } from '@repo/database';
+import { UsersService } from '../users/users.service';
+import { GitHubUser } from './dto/github-user.dto';
+import { AuthResponse } from './dto/auth-response.dto';
+import { EncryptionUtil } from '../../common/utils/encryption.util';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
-    private readonly configService: AppConfigService,
   ) {}
 
-  async handleGitHubCallback(req: Request, res: Response): Promise<void> {
+  async handleGitHubCallback(req: Request): Promise<AuthResponse> {
     try {
-      const githubUser = req.user as GitHubUserDto;
+      const githubUser = req.user as GitHubUser;
 
       if (!githubUser || !githubUser.id) {
         throw new BadRequestException('Invalid GitHub user data');
       }
 
-      // Find or create user
-      let user = await this.userRepository.findOne({
-        where: { githubId: githubUser.id.toString() },
-      });
-
       const email = this.extractEmail(githubUser);
-      const name = githubUser.displayName || githubUser.username || 'GitHub User';
-      const avatar = githubUser.photos?.[0]?.value;
-
-      if (!user) {
-        // Create new user
-        user = this.userRepository.create({
-          githubId: githubUser.id.toString(),
-          email,
-          name,
-          avatar,
-          accessToken: githubUser.accessToken,
-        });
-      } else {
-        // Update existing user
-        user.accessToken = githubUser.accessToken;
-        user.avatar = avatar || user.avatar;
-        user.name = name || user.name;
-        if (email && email !== user.email) {
-          user.email = email;
-        }
+      if (!email) {
+        throw new BadRequestException('Email is required for authentication');
       }
 
-      await this.userRepository.save(user);
+      // Encrypt access token before storing
+      const encryptedAccessToken = await EncryptionUtil.encrypt(githubUser.access_token || '');
+
+      // Upsert user using Prisma
+      const user = await this.usersService.upsertByGitHubId(
+        githubUser.id.toString(),
+        {
+          email,
+          name: githubUser.name || githubUser.login,
+          avatar: githubUser.avatar_url,
+          accessToken: encryptedAccessToken,
+        },
+      );
 
       // Generate JWT token
       const token = this.generateToken(user);
 
-      // Set cookie and redirect
-      this.setAuthCookie(res, token);
+      this.logger.log(`User authenticated successfully: ${user.id}`);
 
-      // Redirect to dashboard
-      res.redirect(`${this.configService.frontendUrl}/dashboard`);
+      return {
+        access_token: token,
+        user: {
+          id: user.id,
+          username: githubUser.login,
+          avatar: user.avatar || undefined,
+        },
+      };
     } catch (error) {
-      console.error('GitHub OAuth callback error:', error);
-      res.redirect(`${this.configService.frontendUrl}/login?error=authentication_failed`);
+      this.logger.error('GitHub OAuth callback error:', error);
+      
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      
+      throw new InternalServerErrorException('Authentication failed');
     }
   }
 
@@ -75,67 +73,63 @@ export class AuthService {
     }
 
     try {
-      const user = await this.userRepository.findOne({
-        where: { id: payload.sub },
-      });
+      const user = await this.usersService.findById(payload.sub);
       return user;
     } catch (error) {
-      console.error('Error validating user:', error);
+      this.logger.error('Error validating user:', error);
       return null;
     }
   }
 
   async getUserProfile(userId: string): Promise<Partial<User>> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      select: ['id', 'email', 'name', 'avatar', 'createdAt'],
-    });
-
-    if (!user) {
-      throw new BadRequestException('User not found');
-    }
-
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      avatar: user.avatar,
-      createdAt: user.createdAt,
-    };
+    return this.usersService.getProfile(userId);
   }
 
-  private extractEmail(githubUser: GitHubUserDto): string {
-    // Try to get verified email first
-    const verifiedEmail = githubUser.emails?.find((email) => email.verified)?.value;
+  private extractEmail(githubUser: GitHubUser): string | null {
+    // Try to get verified primary email first
+    const verifiedPrimaryEmail = githubUser.emails?.find(
+      (email) => email.verified && email.primary,
+    )?.email;
+    
+    if (verifiedPrimaryEmail) {
+      return verifiedPrimaryEmail;
+    }
+
+    // Try to get any verified email
+    const verifiedEmail = githubUser.emails?.find((email) => email.verified)?.email;
     if (verifiedEmail) {
       return verifiedEmail;
     }
 
+    // Use direct email if available
+    if (githubUser.email) {
+      return githubUser.email;
+    }
+
+    // Fallback to primary email even if not verified
+    const primaryEmail = githubUser.emails?.find((email) => email.primary)?.email;
+    if (primaryEmail) {
+      return primaryEmail;
+    }
+
     // Fallback to first email
-    const firstEmail = githubUser.emails?.[0]?.value;
+    const firstEmail = githubUser.emails?.[0]?.email;
     if (firstEmail) {
       return firstEmail;
     }
 
-    // Fallback to username-based email
-    return `${githubUser.username}@users.noreply.github.com`;
+    return null;
   }
 
   private generateToken(user: User): string {
-    return this.jwtService.sign({
+    const payload = {
       sub: user.id,
-      email: user.email,
-      githubId: user.githubId,
-    });
-  }
+      github_id: user.githubId,
+      username: user.name || user.email,
+    };
 
-  private setAuthCookie(res: Response, token: string): void {
-    res.cookie('access_token', token, {
-      httpOnly: true,
-      secure: this.configService.isProduction,
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/',
+    return this.jwtService.sign(payload, {
+      expiresIn: '7d',
     });
   }
 }

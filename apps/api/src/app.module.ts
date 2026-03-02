@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
-import { AppConfigModule } from './config/config.module';
+import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
 import { GitHubModule } from './modules/github/github.module';
 import { ReposModule } from './modules/repos/repos.module';
 import { IssuesModule } from './modules/issues/issues.module';
@@ -10,15 +11,22 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { HealthModule } from './modules/health/health.module';
-import { DatabaseModule } from './database/database.module';
+import { DatabaseModule } from '@repo/database';
 
 @Module({
   imports: [
-    AppConfigModule,
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: () => {
+        // Environment validation will be handled in AuthModule
+        return {};
+      },
+    }),
     ScheduleModule.forRoot(),
     DatabaseModule,
     HealthModule,
     AuthModule,
+    UsersModule,
     GitHubModule,
     ReposModule,
     IssuesModule,

@@ -97,6 +97,105 @@ This will start:
 - API server
 - Web frontend
 
+## OAuth Authentication Flow
+
+The application uses GitHub OAuth for authentication with the following flow:
+
+### 1. Initiate OAuth
+```
+GET /api/auth/github
+```
+
+- Redirects user to GitHub authorization page
+- Includes required scopes and CSRF protection via state parameter
+
+### 2. GitHub Authorization
+- User authorizes the application on GitHub
+- GitHub redirects back to the callback URL
+
+### 3. Handle Callback
+```
+GET /api/auth/github/callback?code=xxx&state=xxx
+```
+
+- Exchange authorization code for access token
+- Extract user profile data (id, username, email, avatar)
+- Store encrypted access token in database
+- Generate JWT token for session management
+
+### 4. JWT Response
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "user-uuid",
+    "username": "github-username",
+    "avatar": "https://avatars.githubusercontent.com/u/123456?v=4"
+  }
+}
+```
+
+### 5. Authenticated Requests
+Include JWT token in Authorization header:
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+## Environment Variables
+
+### Required Variables
+
+Create `.env.local` with the following required variables:
+
+```env
+# Database
+DATABASE_URL="postgresql://username:password@localhost:5432/repo_ghost_hunter"
+
+# GitHub OAuth
+GITHUB_CLIENT_ID="your-github-oauth-client-id"
+GITHUB_CLIENT_SECRET="your-github-oauth-client-secret"
+
+# JWT Authentication
+JWT_SECRET="your-32-character-minimum-secret-key"
+
+# Application URLs
+FRONTEND_URL="http://localhost:3000"
+GITHUB_CALLBACK_URL="http://localhost:3001/api/auth/github/callback"
+```
+
+### Optional Variables
+
+```env
+# Redis (for caching)
+REDIS_URL="redis://localhost:6379"
+
+# Encryption (for access tokens)
+ENCRYPTION_KEY="your-32-character-encryption-key"
+
+# Environment
+NODE_ENV="development"  # development | production | test
+```
+
+### GitHub OAuth Setup
+
+1. **Create GitHub OAuth App**
+   - Go to GitHub Settings → Developer settings → OAuth Apps
+   - Click "New OAuth App"
+   - Set Authorization callback URL: `http://localhost:3001/api/auth/github/callback`
+   - For production, use your actual domain
+
+2. **Configure Environment**
+   ```env
+   GITHUB_CLIENT_ID="your-client-id"
+   GITHUB_CLIENT_SECRET="your-client-secret"
+   ```
+
+3. **Required Scopes**
+   The app requests the following GitHub scopes:
+   - `user:email` - Read user email
+   - `read:org` - Read organization data (if applicable)
+   - `read:user` - Read user profile data
+
 ## Project Structure
 
 ### Applications (`apps/`)

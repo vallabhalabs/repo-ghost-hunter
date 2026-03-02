@@ -1,10 +1,12 @@
-import { Controller, Get, UseGuards, Req, Res, Post } from '@nestjs/common';
+import { Controller, Get, UseGuards, Req, Post, HttpCode, HttpStatus, Res } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { User } from '../../database/entities/user.entity';
+import { Public } from '../../common/decorators/public.decorator';
+import { User } from '@repo/database';
+import { AuthResponse } from './dto/auth-response.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -13,8 +15,8 @@ export class AuthController {
   /**
    * Initiates GitHub OAuth flow
    * 
-   * This endpoint redirects the user to GitHub's authorization page.
-   * After the user authorizes, GitHub will redirect back to /auth/github/callback
+   * This endpoint redirects user to GitHub's authorization page.
+   * After user authorizes, GitHub will redirect back to /auth/github/callback
    * 
    * @query state - Optional state parameter for CSRF protection
    * @returns Redirects to GitHub authorization page
@@ -24,6 +26,7 @@ export class AuthController {
    * GET /api/auth/github?state=random_csrf_token
    */
   @Get('github')
+  @Public()
   @UseGuards(AuthGuard('github'))
   async githubAuth(@Req() req: Request) {
     // Passport GitHub strategy automatically handles:
@@ -41,12 +44,13 @@ export class AuthController {
 
   /**
    * GitHub OAuth callback endpoint
-   * Handles the callback from GitHub after user authorization
+   * Handles the callback from GitHub after user authorization and returns JWT token
    */
   @Get('github/callback')
+  @Public()
   @UseGuards(AuthGuard('github'))
-  async githubCallback(@Req() req: Request, @Res() res: Response) {
-    return this.authService.handleGitHubCallback(req, res);
+  async githubCallback(@Req() req: Request): Promise<AuthResponse> {
+    return this.authService.handleGitHubCallback(req);
   }
 
   /**
@@ -60,18 +64,19 @@ export class AuthController {
 
   /**
    * Logout endpoint
-   * Clears the authentication cookie
+   * Clears authentication cookie
    */
   @Post('logout')
   @UseGuards(JwtAuthGuard)
-  async logout(@Res() res: Response) {
+  @HttpCode(HttpStatus.OK)
+  async logout(@Req() req: Request, @Res() res: Response) {
     res.clearCookie('access_token', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
     });
-    return res.json({ message: 'Logged out successfully' });
+    return { message: 'Logged out successfully' };
   }
 
   /**

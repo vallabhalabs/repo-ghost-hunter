@@ -1,9 +1,12 @@
-export class AuthResponseDto {
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    avatar?: string;
-  };
-  token: string;
-}
+import { z } from 'zod';
+
+export const AuthResponseSchema = z.object({
+  access_token: z.string(),
+  user: z.object({
+    id: z.string(),
+    username: z.string(),
+    avatar: z.string().url().optional(),
+  }),
+});
+
+export type AuthResponse = z.infer<typeof AuthResponseSchema>;
