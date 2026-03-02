@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  avatar       String?
+  accessToken  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  repositories Repository[]
+  organizations Organization[]
+
+  @@map("users")
+}
+
+model Organization {
+  id           String    @id @default(cuid())
+  githubOrgId  Int       @unique @map("github_org_id")
+  login        String    @unique
+  avatarUrl    String?   @map("avatar_url")
+  userId       String    @map("user_id")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repositories Repository[]
+
+  @@map("organizations")
+}
+
+model Repository {
+  id             String    @id @default(cuid())
+  githubRepoId   Int       @unique @map("github_repo_id")
+  name           String
+  fullName       String    @map("full_name")
+  private         Boolean   @default(false)
+  defaultBranch  String    @map("default_branch")
+  lastCommitAt   DateTime? @map("last_commit_at")
+  openPrCount    Int       @default(0) @map("open_pr_count")
+  openIssueCount Int       @default(0) @map("open_issue_count")
+  healthScore    Float     @default(0) @map("health_score")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  userId         String    @map("user_id")
+  organizationId String?   @map("organization_id")
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization  Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([healthScore])
+  @@index([githubRepoId])
+  @@map("repositories")
+}

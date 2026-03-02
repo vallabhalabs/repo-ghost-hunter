@@ -57,6 +57,105 @@ export class SyncService {
     private readonly prisma: PrismaService,
   ) {}
 
+  async syncRepository(
+    userId: string, 
+    githubRepo: any, 
+    organizationId?: string
+  ): Promise<boolean> {
+    try {
+      // Fetch additional data for the repository
+      const [pullRequests, issues, commits] = await Promise.all([
+        this.httpService.get<GitHubPullRequestsResponse>(
+          `https://api.github.com/repos/${githubRepo.owner.login}/${githubRepo.name}/pulls`,
+          {
+            headers: {
+              Authorization: `token ${this.configService.get<string>('GITHUB_TOKEN')}`,
+              Accept: 'application/vnd.github.v3+json',
+            },
+          }
+        ),
+        this.httpService.get<GitHubIssuesResponse>(
+          `https://api.github.com/repos/${githubRepo.owner.login}/${githubRepo.name}/issues`,
+          {
+            headers: {
+              Authorization: `token ${this.configService.get<string>('GITHUB_TOKEN')}`,
+              Accept: 'application/vnd.github.v3+json',
+            },
+          }
+        ),
+        this.httpService.get<GitHubCommitsResponse>(
+          `https://api.github.com/repos/${githubRepo.owner.login}/${githubRepo.name}/commits`,
+          {
+            headers: {
+              Authorization: `token ${this.configService.get<string>('GITHUB_TOKEN')}`,
+              Accept: 'application/vnd.github.v3+json',
+            },
+          }
+        ),
+      ]);
+
+      // Calculate health score
+      const healthScore = this.calculateHealthScore(githubRepo, pullRequests.data, issues.data);
+      
+      // Upsert repository
+      await this.prisma.repository.upsert({
+        where: { githubRepoId: githubRepo.id },
+        update: {
+          name: githubRepo.name,
+          fullName: githubRepo.full_name,
+          private: githubRepo.private || false,
+          defaultBranch: githubRepo.default_branch || 'main',
+          lastCommitAt: githubRepo.updated_at ? new Date(githubRepo.updated_at) : new Date(0),
+          openPrCount: pullRequests?.data?.length || 0,
+          openIssueCount: issues?.data?.length || 0,
+          healthScore,
+          updatedAt: new Date(),
+          organizationId,
+        },
+        create: {
+          userId,
+          githubRepoId: githubRepo.id,
+          name: githubRepo.name,
+          fullName: githubRepo.full_name,
+          private: githubRepo.private || false,
+          defaultBranch: githubRepo.default_branch || 'main',
+          lastCommitAt: githubRepo.updated_at ? new Date(githubRepo.updated_at) : new Date(0),
+          openPrCount: pullRequests?.data?.length || 0,
+          openIssueCount: issues?.data?.length || 0,
+          healthScore,
+          organizationId,
+        },
+      });
+
+      return true;
+    } catch (error) {
+      this.logger.error(`Error syncing repository ${githubRepo.name}: ${error.message}`);
+      return false;
+    }
+  }
+
+  private calculateHealthScore(repository: any, pullRequests: any[], issues: any[]): number {
+    const now = new Date();
+    const lastCommitDate = repository.last_commit_at ? new Date(repository.last_commit_at) : new Date(0);
+    const daysSinceLastCommit = Math.max(0, Math.floor((now.getTime() - lastCommitDate.getTime()) / (1000 * 60 * 60 * 24)));
+    
+    // Recency score (0-1, more recent is better)
+    const recencyScore = Math.max(0, 1 - (daysSinceLastCommit / 90));
+    
+    // PR activity score (0-1, more active is better)
+    const prActivityScore = Math.min(1, (pullRequests?.length || 0) / 10);
+    
+    // Issue activity score (0-1, more active is better)
+    const issueActivityScore = Math.min(1, (issues?.length || 0) / 20);
+    
+    const healthScore = 
+      (this.metrics.recentCommitWeight * recencyScore) +
+      (this.metrics.prActivityScore * prActivityScore) +
+      (this.metrics.issueActivityScore * issueActivityScore);
+    
+    return healthScore;
+  }
+
   private calculateHealthScore(repository: any, pullRequests: any[], issues: any[]): number {
     const now = new Date();
     const lastCommitDate = repository.last_commit_at ? new Date(repository.last_commit_at) : new Date(0);
