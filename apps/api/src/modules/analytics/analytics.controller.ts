@@ -1,20 +1,40 @@
-import { Controller, Get, Param, UseGuards, Req } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
-import { Request } from 'express';
+import { 
+  Controller, 
+  Get, 
+  Query, 
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { AnalyticsQuerySchema } from './dto/analytics.dto';
 
 @Controller('analytics')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(JwtAuthGuard)
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
-  @Get('repo/:repoId/health-score')
-  async getHealthScore(@Param('repoId') repoId: string, @Req() req: Request) {
-    return this.analyticsService.calculateHealthScore(repoId, req.user);
+  @Get('overview')
+  @HttpCode(HttpStatus.OK)
+  async getOverview(@CurrentUser() user: any) {
+    return this.analyticsService.getOverview(user.id);
   }
 
-  @Get('repo/:repoId/activity')
-  async getActivity(@Param('repoId') repoId: string, @Req() req: Request) {
-    return this.analyticsService.getActivityLogs(repoId, req.user);
+  @Get('repos')
+  @HttpCode(HttpStatus.OK)
+  async getRepositories(
+    @CurrentUser() user: any,
+    @Query() query: any,
+  ) {
+    const validatedQuery = AnalyticsQuerySchema.parse(query);
+    return this.analyticsService.getRepositories(user.id, validatedQuery);
+  }
+
+  @Get('activity-trend')
+  @HttpCode(HttpStatus.OK)
+  async getActivityTrend(@CurrentUser() user: any) {
+    return this.analyticsService.getActivityTrend(user.id);
   }
 }

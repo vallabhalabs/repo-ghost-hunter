@@ -1,70 +1,183 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ActivityLog } from '../../database/entities/activitylog.entity';
-import { Repository as RepoEntity } from '../../database/entities/repository.entity';
-import { User } from '../../database/entities/user.entity';
+import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '@repo/database';
+import { 
+  AnalyticsOverview, 
+  RepositoryAnalytics, 
+  ActivityTrend,
+  AnalyticsQuery,
+  Pagination,
+  PaginatedRepositoriesResponse 
+} from './dto/analytics.dto';
+import { Repository } from '@repo/database';
 
 @Injectable()
 export class AnalyticsService {
-  constructor(
-    @InjectRepository(ActivityLog)
-    private readonly activityLogRepository: Repository<ActivityLog>,
-    @InjectRepository(RepoEntity)
-    private readonly repoRepository: Repository<RepoEntity>,
-  ) {}
+  private readonly logger = new Logger(AnalyticsService.name);
 
-  async calculateHealthScore(repoId: string, user: User) {
-    const repo = await this.repoRepository.findOne({
-      where: { id: repoId, userId: user.id },
-    });
+  constructor(private readonly prisma: PrismaService) {}
 
-    if (!repo) {
-      throw new Error('Repository not found');
-    }
+  async getOverview(userId: string): Promise<AnalyticsOverview> {
+    this.logger.log(`Generating analytics overview for user: ${userId}`);
 
-    // Calculate health score based on various factors
-    // This is a simplified version - you can expand this logic
-    let score = 100;
+    const [
+      totalRepos,
+      healthyRepos,
+      atRiskRepos,
+      criticalRepos,
+      avgHealthScore,
+      lastSyncedAt,
+    ] = await Promise.all([
+      this.prisma.repository.count({
+        where: { userId },
+      }),
+      this.prisma.repository.count({
+        where: { 
+          userId,
+          healthScore: { gt: 75 },
+        },
+      }),
+      this.prisma.repository.count({
+        where: { 
+          userId,
+          healthScore: { gte: 40, lte: 75 },
+        },
+      }),
+      this.prisma.repository.count({
+        where: { 
+          userId,
+          healthScore: { lt: 40 },
+        },
+      }),
+      this.prisma.repository.aggregate({
+        where: { userId },
+        _avg: {
+          healthScore: true,
+        },
+        _max: {
+          updatedAt: true,
+        },
+      }),
+    ]);
 
-    // Deduct points for stale items
-    if (repo.openPrCount > 0) score -= repo.openPrCount * 2;
-    if (repo.openIssueCount > 0) score -= repo.openIssueCount * 1;
+    return {
+      total_repositories: totalRepos,
+      healthy_repositories: healthyRepos,
+      at_risk_repositories: atRiskRepos,
+      critical_repositories: criticalRepos,
+      average_health_score: avgHealthScore._avg.healthScore || 0,
+      last_synced_at: avgHealthScore._max.updatedAt?.toISOString() || new Date().toISOString(),
+    };
+  }
 
-    // Deduct points for inactivity
-    if (repo.lastCommit) {
-      const daysSinceLastCommit = Math.floor(
-        (Date.now() - new Date(repo.lastCommit).getTime()) / (1000 * 60 * 60 * 24),
-      );
-      if (daysSinceLastCommit > 30) {
-        score -= 20;
-      } else if (daysSinceLastCommit > 14) {
-        score -= 10;
+  async getRepositories(
+    userId: string,
+    query: AnalyticsQuery,
+  ): Promise<PaginatedRepositoriesResponse> {
+    this.logger.log(`Fetching repositories for user: ${userId} with query:`, query);
+
+    const whereClause: any = { userId };
+    
+    if (query.status) {
+      switch (query.status) {
+        case 'healthy':
+          whereClause.healthScore = { gt: 75 };
+          break;
+        case 'at_risk':
+          whereClause.healthScore = { gte: 40, lte: 75 };
+          break;
+        case 'critical':
+          whereClause.healthScore = { lt: 40 };
+          break;
       }
     }
 
-    score = Math.max(0, Math.min(100, score));
+    const skip = (query.page - 1) * query.limit;
 
-    // Update repository health score
-    repo.healthScore = score;
-    await this.repoRepository.save(repo);
+    const [repositories, totalCount] = await Promise.all([
+      this.prisma.repository.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          github_repo_id: true,
+          name: true,
+          full_name: true,
+          private: true,
+          default_branch: true,
+          last_commit_at: true,
+          open_pr_count: true,
+          open_issue_count: true,
+          health_score: true,
+          updated_at: true,
+          created_at: true,
+          user_id: true,
+        },
+        orderBy: {
+          health_score: 'asc',
+        },
+        skip,
+        take: query.limit,
+      }),
+      this.prisma.repository.count({
+        where: whereClause,
+      }),
+    ]);
 
-    return { score, repoId };
+    const totalPages = Math.ceil(totalCount / query.limit);
+
+    return {
+      data: repositories,
+      pagination: {
+        page: query.page,
+        limit: query.limit,
+        total: totalCount,
+        totalPages,
+      },
+    };
   }
 
-  async getActivityLogs(repoId: string, user: User) {
-    const repo = await this.repoRepository.findOne({
-      where: { id: repoId, userId: user.id },
+  async getActivityTrend(userId: string): Promise<ActivityTrend> {
+    this.logger.log(`Generating activity trend for user: ${userId}`);
+
+    const repositories = await this.prisma.repository.findMany({
+      where: { userId },
+      select: {
+        last_commit_at: true,
+      },
     });
 
-    if (!repo) {
-      throw new Error('Repository not found');
-    }
+    const now = new Date();
+    const buckets = [
+      { range: '0-7 days', min: 0, max: 7 },
+      { range: '8-30 days', min: 8, max: 30 },
+      { range: '31-90 days', min: 31, max: 90 },
+      { range: '90+ days', min: 91, max: 999999 },
+    ];
 
-    return this.activityLogRepository.find({
-      where: { repoId },
-      order: { week: 'DESC' },
-      take: 12, // Last 12 weeks
+    const trendBuckets = buckets.map(bucket => {
+      const count = repositories.filter(repo => {
+        if (!repo.last_commit_at) return false;
+        
+        const daysSinceLastCommit = Math.floor(
+          (now.getTime() - new Date(repo.last_commit_at).getTime()) / (1000 * 60 * 60 * 24),
+        );
+        
+        return daysSinceLastCommit >= bucket.min && daysSinceLastCommit <= bucket.max;
+      }).length;
+
+      return {
+        range: bucket.range,
+        count,
+      };
     });
+
+    return {
+      buckets: trendBuckets,
+    };
+  }
+
+  private getHealthStatus(score: number): 'healthy' | 'at_risk' | 'critical' {
+    if (score > 75) return 'healthy';
+    if (score >= 40) return 'at_risk';
+    return 'critical';
   }
 }
