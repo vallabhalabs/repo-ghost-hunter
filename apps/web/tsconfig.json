@@ -4,7 +4,14 @@
     "plugins": [{ "name": "next" }],
     "paths": {
       "@/*": ["./*"]
-    }
+    },
+    "jsx": "preserve",
+    "allowJs": true,
+    "esModuleInterop": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "skipLibCheck": true
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]

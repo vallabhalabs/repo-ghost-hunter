@@ -24,6 +24,7 @@ export interface Repository {
   updated_at: string;
   created_at: string;
   user_id: string;
+  organization_id?: string;
 }
 
 export interface PaginatedRepositories {
@@ -43,15 +44,17 @@ export interface ActivityTrend {
   }>;
 }
 
-export function useAnalyticsOverview() {
+export function useAnalyticsOverview(organizationId?: string) {
+  const params = organizationId ? `?organizationId=${organizationId}` : '';
+  
   return useQuery({
-    queryKey: ['analytics', 'overview'],
-    queryFn: () => fetchWithAuth<AnalyticsOverview>('/analytics/overview'),
+    queryKey: ['analytics', 'overview', organizationId],
+    queryFn: () => fetchWithAuth<AnalyticsOverview>(`/analytics/overview${params}`),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 
-export function useRepositories(page: number = 1, limit: number = 20, status?: string) {
+export function useRepositories(page: number = 1, limit: number = 20, status?: string, organizationId?: string) {
   const params = new URLSearchParams({
     page: page.toString(),
     limit: limit.toString(),
@@ -60,18 +63,24 @@ export function useRepositories(page: number = 1, limit: number = 20, status?: s
   if (status) {
     params.append('status', status);
   }
+  
+  if (organizationId) {
+    params.append('organizationId', organizationId);
+  }
 
   return useQuery({
-    queryKey: ['analytics', 'repos', page, limit, status],
+    queryKey: ['analytics', 'repos', page, limit, status, organizationId],
     queryFn: () => fetchWithAuth<PaginatedRepositories>(`/analytics/repos?${params}`),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 
-export function useActivityTrend() {
+export function useActivityTrend(organizationId?: string) {
+  const params = organizationId ? `?organizationId=${organizationId}` : '';
+  
   return useQuery({
-    queryKey: ['analytics', 'activity-trend'],
-    queryFn: () => fetchWithAuth<ActivityTrend>('/analytics/activity-trend'),
+    queryKey: ['analytics', 'activity-trend', organizationId],
+    queryFn: () => fetchWithAuth<ActivityTrend>(`/analytics/activity-trend${params}`),
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 }
